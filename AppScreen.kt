@@ -1,9 +1,14 @@
 package com.kotlingdgocucb.elimuApp.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -21,6 +26,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -44,13 +50,11 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppScreen(
-
     userInfo: User?,
-    notificationsCount: Int, // Nombre de notifications
+    notificationsCount: Int,
     onSigninOutClicked: () -> Unit,
     navController: NavController
 ) {
-    // Animation d'entrée pour le TopAppBar
     var startAnimation by remember { mutableStateOf(false) }
     val textOffset by animateFloatAsState(
         targetValue = if (startAnimation) 0f else -50f,
@@ -65,12 +69,9 @@ fun AppScreen(
         startAnimation = true
     }
 
-    // Gestion du drawer et de la navigation
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.Accueil) }
-
-    // État pour afficher la boîte de dialogue de déconnexion
     var showLogoutDialog by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -93,79 +94,13 @@ fun AppScreen(
             drawerState = drawerState
         ) {
             Scaffold(
-
                 topBar = {
-                    CenterAlignedTopAppBar(
-                        title = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                // Photo de profil : clic pour accéder à la page de modification du profil
-                                IconButton(
-                                    onClick = { navController.navigate("profile") }
-                                ) {
-                                    AsyncImage(
-                                        model = ImageRequest.Builder(LocalContext.current)
-                                            .data(userInfo?.profile_picture_uri)
-                                            .crossfade(true)
-                                            .build(),
-                                        placeholder = painterResource(R.drawable.account),
-                                        contentDescription = "Photo de profil",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape)
-                                            .graphicsLayer(
-                                                translationY = textOffset,
-                                                alpha = alphaValue
-                                            )
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                // Message de bienvenue
-                                TypewriterText(
-                                    text = "Bonjour ${userInfo?.name ?: "Invité"}",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    modifier = Modifier.graphicsLayer(
-                                        translationY = textOffset,
-                                        alpha = alphaValue
-                                    )
-                                )
-                                Spacer(modifier = Modifier.weight(1f))
-                                // Bouton notification avec badge
-                                IconButton(
-                                    onClick = { navController.navigate("notifications") },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    BadgedBox(
-                                        badge = {
-                                            if (notificationsCount > 0) {
-                                                Badge(
-                                                    containerColor = Color.Red
-                                                ) {
-                                                    Text(
-                                                        text = notificationsCount.toString(),
-                                                        color = Color.White,
-                                                        style = MaterialTheme.typography.labelSmall
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Notifications,
-                                            contentDescription = "Notifications",
-                                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
-                                    }
-                                }
-                            }
-                        },
-                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                            titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-
-                        )
+                    ModernTopAppBar(
+                        userInfo = userInfo,
+                        notificationsCount = notificationsCount,
+                        textOffset = textOffset,
+                        alphaValue = alphaValue,
+                        navController = navController
                     )
                 },
                 content = { innerPadding ->
@@ -173,14 +108,6 @@ fun AppScreen(
                         modifier = Modifier
                             .padding(innerPadding)
                             .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.background,
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                    )
-                                )
-                            )
                     ) {
                         Column {
                             NavigationSuiteScaffold(
@@ -216,7 +143,6 @@ fun AppScreen(
             )
         }
 
-        // Boîte de dialogue de confirmation de déconnexion
         if (showLogoutDialog) {
             LogoutConfirmationDialog(
                 onDismiss = { showLogoutDialog = false },
@@ -226,12 +152,132 @@ fun AppScreen(
     }
 }
 
-/**
- * Contenu du drawer moderne avec le menu.
- *
- * @param onDestinationClicked Fonction appelée lors du clic sur un item du drawer
- *        pour la navigation via la BottomNavigationSuite.
- */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ModernTopAppBar(
+    userInfo: User?,
+    notificationsCount: Int,
+    textOffset: Float,
+    alphaValue: Float,
+    navController: NavController
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 8.dp,
+                shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
+            ),
+        shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Photo de profil avec animation
+            Card(
+                modifier = Modifier
+                    .size(48.dp)
+                    .graphicsLayer(
+                        translationY = textOffset,
+                        alpha = alphaValue
+                    ),
+                shape = CircleShape,
+                elevation = CardDefaults.cardElevation(6.dp)
+            ) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(userInfo?.profile_picture_uri)
+                        .crossfade(true)
+                        .build(),
+                    placeholder = painterResource(R.drawable.account),
+                    contentDescription = "Photo de profil",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            // Message de bienvenue moderne
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .graphicsLayer(
+                        translationY = textOffset,
+                        alpha = alphaValue
+                    )
+            ) {
+                Text(
+                    text = "Bonjour 👋",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TypewriterText(
+                    text = userInfo?.name ?: "Invité",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier
+                )
+            }
+            
+            // Bouton notification moderne
+            Card(
+                modifier = Modifier.size(48.dp),
+                shape = CircleShape,
+                colors = CardDefaults.cardColors(
+                    containerColor = if (notificationsCount > 0) 
+                        MaterialTheme.colorScheme.primaryContainer 
+                    else MaterialTheme.colorScheme.surfaceVariant
+                ),
+                elevation = CardDefaults.cardElevation(4.dp)
+            ) {
+                IconButton(
+                    onClick = { navController.navigate("notifications") },
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    BadgedBox(
+                        badge = {
+                            AnimatedVisibility(
+                                visible = notificationsCount > 0,
+                                enter = fadeIn() + slideInVertically(),
+                                exit = fadeOut() + slideOutVertically()
+                            ) {
+                                Badge(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.offset(x = 4.dp, y = (-4).dp)
+                                ) {
+                                    Text(
+                                        text = notificationsCount.toString(),
+                                        color = MaterialTheme.colorScheme.onError,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = "Notifications",
+                            tint = if (notificationsCount > 0) 
+                                MaterialTheme.colorScheme.onPrimaryContainer 
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun ModernDrawerContent(
     userInfo: User?,
@@ -243,117 +289,191 @@ fun ModernDrawerContent(
     onLogoutClicked: () -> Unit,
 ) {
     ModalDrawerSheet(
-        modifier = Modifier.fillMaxWidth(0.8f),
-        drawerContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-        drawerContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        modifier = Modifier.fillMaxWidth(0.85f),
+        drawerContainerColor = MaterialTheme.colorScheme.surface,
+        drawerContentColor = MaterialTheme.colorScheme.onSurface
     ) {
-        Spacer(modifier = Modifier.height(24.dp))
-        // En-tête profil avec dégradé horizontal
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.secondary
-                        )
-                    )
-                )
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
+        Column(
+            modifier = Modifier.fillMaxSize()
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(userInfo?.profile_picture_uri)
-                        .crossfade(true)
-                        .build(),
-                    placeholder = painterResource(R.drawable.account),
-                    contentDescription = "Photo de profil",
-                    contentScale = ContentScale.Crop,
+            // En-tête profil moderne
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .shadow(
+                        elevation = 12.dp,
+                        shape = RoundedCornerShape(20.dp)
+                    ),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Column(
                     modifier = Modifier
-                        .size(100.dp)
-                        .clip(CircleShape)
-                        .graphicsLayer(
-                            translationY = textOffset,
-                            alpha = alphaValue
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .graphicsLayer(
+                                translationY = textOffset,
+                                alpha = alphaValue
+                            ),
+                        shape = CircleShape,
+                        elevation = CardDefaults.cardElevation(8.dp)
+                    ) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(userInfo?.profile_picture_uri)
+                                .crossfade(true)
+                                .build(),
+                            placeholder = painterResource(R.drawable.account),
+                            contentDescription = "Photo de profil",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
                         )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = userInfo?.name ?: "Nom utilisateur",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Text(
+                        text = userInfo?.email ?: "email@example.com",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Card(
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Text(
+                                text = "📚 ${userInfo?.track ?: "Non défini"}",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    
+                    Text(
+                        text = "👨‍🏫 ${userInfo?.mentor_name ?: "Non défini"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Items de navigation modernes
+            ModernNavigationDrawerItem(
+                icon = Icons.Default.Feedback,
+                label = "Feedbacks",
+                onClick = { navController.navigate("feedback") }
+            )
+            
+            ModernNavigationDrawerItem(
+                icon = Icons.Default.Description,
+                label = "Terms & Conditions",
+                onClick = { navController.navigate("terms") }
+            )
+            
+            ModernNavigationDrawerItem(
+                icon = Icons.Default.Info,
+                label = "À propos",
+                onClick = { navController.navigate("about") }
+            )
+            
+            Spacer(modifier = Modifier.weight(1f))
+            
+            // Bouton de déconnexion moderne
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = userInfo?.name ?: "Nom utilisateur",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-                Text(
-                    text = userInfo?.email ?: "email@example.com",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-                Text(
-                    text = "Track : ${userInfo?.track ?: "Non défini"}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-                Text(
-                    text = "Mentor : ${userInfo?.mentor_name ?: "Non défini"}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimary
+            ) {
+                NavigationDrawerItem(
+                    icon = { 
+                        Icon(
+                            Icons.Default.ExitToApp, 
+                            contentDescription = "Se déconnecter",
+                            tint = MaterialTheme.colorScheme.onErrorContainer
+                        ) 
+                    },
+                    label = { 
+                        Text(
+                            "Se déconnecter",
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            fontWeight = FontWeight.Medium
+                        ) 
+                    },
+                    selected = false,
+                    onClick = onLogoutClicked,
+                    modifier = Modifier.padding(8.dp),
+                    colors = NavigationDrawerItemDefaults.colors(
+                        unselectedContainerColor = Color.Transparent
+                    )
                 )
             }
         }
-        Spacer(modifier = Modifier.height(24.dp))
-        Divider()
-        Spacer(modifier = Modifier.height(8.dp))
-        // Exemple d'item : Feedbacks
-        NavigationDrawerItem(
-            icon = { Icon(Icons.Default.Feedback, contentDescription = "Feedbacks") },
-            label = { Text("Feedbacks") },
-            selected = false,
-            onClick = {
-                navController.navigate("feedback")
-            },
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        )
-        // Exemple d'item : Terms & Conditions
-        NavigationDrawerItem(
-            icon = { Icon(Icons.Default.Description, contentDescription = "Terms & Conditions") },
-            label = { Text("Terms & Conditions") },
-            selected = false,
-            onClick = {
-                navController.navigate("terms")
-            },
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        )
-        // Exemple d'item : À propos
-        NavigationDrawerItem(
-            icon = { Icon(Icons.Default.Info, contentDescription = "À propos") },
-            label = { Text("À propos") },
-            selected = false,
-            onClick = {
-                navController.navigate("about")
-            },
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        )
-        NavigationDrawerItem(
-            icon = { Icon(Icons.Default.ExitToApp, contentDescription = "Se déconnecter") },
-            label = { Text("Se déconnecter") },
-            selected = false,
-            onClick = {
-                onLogoutClicked()
-            },
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        )
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
-/**
- * Boîte de dialogue de confirmation de déconnexion avec animation Lottie.
- */
+@Composable
+fun ModernNavigationDrawerItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    NavigationDrawerItem(
+        icon = { 
+            Icon(
+                icon, 
+                contentDescription = label,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            ) 
+        },
+        label = { 
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            ) 
+        },
+        selected = false,
+        onClick = onClick,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp)
+    )
+}
+
 @Composable
 fun LogoutConfirmationDialog(
     onDismiss: () -> Unit,
@@ -363,68 +483,108 @@ fun LogoutConfirmationDialog(
 
     LaunchedEffect(isLoading) {
         if (isLoading) {
-            delay(3000)
+            delay(2000)
             onConfirm()
         }
     }
 
-    AlertDialog(
-        onDismissRequest = { if (!isLoading) onDismiss() },
-        title = {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(32.dp)
+            .shadow(
+                elevation = 24.dp,
+                shape = RoundedCornerShape(24.dp)
+            ),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             if (!isLoading) {
-                Text("Déconnexion")
-            }
-        },
-        text = {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (!isLoading) {
-                    val composition by rememberLottieComposition(
-                        LottieCompositionSpec.RawRes(R.raw.logout_animation)
-                    )
-                    LottieAnimation(
-                        composition = composition,
-                        iterations = LottieConstants.IterateForever,
-                        modifier = Modifier.size(150.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Voulez-vous vous déconnecter ?")
-                } else {
-                    val composition by rememberLottieComposition(
-                        LottieCompositionSpec.RawRes(R.raw.loading)
-                    )
-                    LottieAnimation(
-                        composition = composition,
-                        iterations = LottieConstants.IterateForever,
-                        modifier = Modifier.size(150.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Déconnexion en cours...")
+                val composition by rememberLottieComposition(
+                    LottieCompositionSpec.RawRes(R.raw.logout_animation)
+                )
+                LottieAnimation(
+                    composition = composition,
+                    iterations = LottieConstants.IterateForever,
+                    modifier = Modifier.size(120.dp)
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text(
+                    text = "Se déconnecter ?",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "Êtes-vous sûr de vouloir vous déconnecter ?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Annuler")
+                    }
+                    
+                    Button(
+                        onClick = { isLoading = true },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text(
+                            "Confirmer",
+                            color = MaterialTheme.colorScheme.onError
+                        )
+                    }
                 }
-            }
-        },
-        confirmButton = {
-            if (!isLoading) {
-                TextButton(onClick = { isLoading = true }) {
-                    Text("Confirmer")
-                }
-            }
-        },
-        dismissButton = {
-            if (!isLoading) {
-                TextButton(onClick = onDismiss) {
-                    Text("Annuler")
-                }
+            } else {
+                val composition by rememberLottieComposition(
+                    LottieCompositionSpec.RawRes(R.raw.loading)
+                )
+                LottieAnimation(
+                    composition = composition,
+                    iterations = LottieConstants.IterateForever,
+                    modifier = Modifier.size(120.dp)
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text(
+                    text = "Déconnexion en cours...",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
-    )
+    }
 }
 
-/**
- * Effet "machine à écrire" pour un texte.
- */
 @Composable
 fun TypewriterText(
     text: String,
@@ -448,6 +608,6 @@ fun TypewriterText(
         text = displayedText,
         style = style,
         modifier = modifier,
-        textAlign = TextAlign.Center
+        textAlign = TextAlign.Start
     )
 }
