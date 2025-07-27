@@ -15,6 +15,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
@@ -28,9 +31,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
@@ -43,11 +46,19 @@ import org.koin.androidx.compose.koinViewModel
 import com.kotlingdgocucb.elimuApp.R
 import com.kotlingdgocucb.elimuApp.domain.model.User
 import com.kotlingdgocucb.elimuApp.data.datasource.local.room.entity.Video
-import com.kotlingdgocucb.elimuApp.ui.components.Rating
+import com.kotlingdgocucb.elimuApp.ui.components.Rating // Assuming Rating is a custom composable for stars
+import androidx.compose.material.icons.filled.AccountCircle // For user avatar placeholder
+import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
 import com.kotlingdgocucb.elimuApp.ui.viewmodel.VideoViewModel
 
-// Composable permettant d'afficher un titre tronqué (maxLength lettres)
-// L'utilisateur peut maintenir l'appui sur le titre pour basculer entre l'affichage complet et tronqué.
+/**
+ * Composable permettant d'afficher un titre tronqué (maxLength lettres).
+ * L'utilisateur peut maintenir l'appui sur le titre pour basculer entre l'affichage complet et tronqué.
+ * @param title Le titre à afficher.
+ * @param maxLength La longueur maximale du titre avant troncation.
+ * @param style Le style de texte à appliquer.
+ * @param color La couleur du texte.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ExpandableTitle(
@@ -62,13 +73,22 @@ fun ExpandableTitle(
         text = displayTitle,
         style = style,
         color = color,
+        maxLines = if (expanded) Int.MAX_VALUE else 1, // Permet plusieurs lignes lorsque étendu
+        overflow = if (expanded) TextOverflow.Visible else TextOverflow.Ellipsis, // Ellipsis lorsque non étendu
         modifier = Modifier.combinedClickable(
             onClick = { /* Action sur clic simple si nécessaire */ },
-            onLongClick = { expanded = !expanded }
+            onLongClick = { expanded = !expanded } // Bascule l'état d'expansion
         )
     )
 }
 
+/**
+ * Écran principal des cours, affichant les vidéos populaires et recommandées.
+ * Intègre une barre de recherche, une barre supérieure et une barre de navigation inférieure.
+ * @param videoViewModel Le ViewModel pour récupérer les données vidéo.
+ * @param navController Le contrôleur de navigation pour la navigation entre les écrans.
+ * @param userInfo Les informations de l'utilisateur connecté.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CourseScreen(
@@ -79,12 +99,13 @@ fun CourseScreen(
     // Observer la liste des vidéos depuis le ViewModel
     val videosState = videoViewModel.videos.observeAsState(initial = emptyList())
     var isRefreshing by remember { mutableStateOf(false) }
-    var showMorePopular by remember { mutableStateOf(false) }
 
+    // Déclenche le chargement des vidéos au démarrage de l'écran
     LaunchedEffect(Unit) {
         videoViewModel.fetchAllVideos()
     }
 
+    // Affiche une animation de chargement en plein écran si les vidéos ne sont pas encore chargées
     if (videosState.value.isEmpty()) {
         FullScreenLoadingAnimation()
         return
@@ -98,23 +119,20 @@ fun CourseScreen(
 
     var searchQuery by remember { mutableStateOf("") }
     var showSuggestions by remember { mutableStateOf(false) }
+
+    // Filtre les suggestions de recherche basées sur la requête
     val suggestions = if (searchQuery.isNotEmpty()) {
         trackVideos.filter { it.title.contains(searchQuery, ignoreCase = true) }
     } else emptyList()
 
+    // Filtre les vidéos affichées en fonction de la recherche
     val filteredVideos = if (searchQuery.isBlank()) trackVideos
     else trackVideos.filter { it.title.contains(searchQuery, ignoreCase = true) }
 
-    val popularVideos = if (showMorePopular) {
-        filteredVideos.filter { it.stars > 3.5 }
-    } else {
-        filteredVideos.take(3)
-    }
-    val recommendedVideos = if (showMorePopular) {
-        emptyList()
-    } else {
-        filteredVideos.drop(3)
-    }
+    // Sélectionne les vidéos populaires (celles avec plus de 3.5 étoiles, limitées à 5)
+    val popularVideos = filteredVideos.filter { it.stars > 3.5 }.take(5)
+    // Sélectionne les vidéos recommandées (les autres vidéos non populaires)
+    val recommendedVideos = filteredVideos.filter { !popularVideos.contains(it) }
 
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
@@ -122,16 +140,20 @@ fun CourseScreen(
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
+        color = MaterialTheme.colorScheme.background // Utilise la couleur de fond du thème Material 3
     ) {
-        Scaffold { innerPadding ->
+        Scaffold(
+
+
+        ) { innerPadding ->
+            // Composant SwipeRefresh pour rafraîchir le contenu en tirant vers le bas
             SwipeRefresh(
                 state = swipeRefreshState,
                 onRefresh = {
                     isRefreshing = true
                     videoViewModel.fetchAllVideos()
                     coroutineScope.launch {
-                        delay(1000)
+                        delay(1000) // Simule un délai réseau
                         isRefreshing = false
                     }
                 },
@@ -140,8 +162,9 @@ fun CourseScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding)
+                        .padding(innerPadding) // Applique le rembourrage du Scaffold
                 ) {
+                    // Barre de recherche
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = {
@@ -150,24 +173,39 @@ fun CourseScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                         label = {
                             Text(
                                 "Chercher un cours",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant // Couleur du libellé
                             )
                         },
-                        shape = RoundedCornerShape(50.dp),
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = "Search Icon",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        shape = RoundedCornerShape(28.dp), // Coins plus arrondis pour un look moderne
                         singleLine = true,
-                        maxLines = 1
+                        maxLines = 1,
+//                        colors = TextFieldDefaults.outlinedTextFieldColors(
+//                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+//                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+//                            cursorColor = MaterialTheme.colorScheme.primary
+//                        )
                     )
+
+                    // Suggestions de recherche (affichées dans une Card)
                     if (showSuggestions && suggestions.isNotEmpty()) {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp)
                                 .padding(bottom = 8.dp),
-                            elevation = CardDefaults.cardElevation(4.dp)
+                            elevation = CardDefaults.cardElevation(4.dp), // Élévation pour l'ombre
+                            shape = RoundedCornerShape(8.dp) // Coins arrondis pour la carte
                         ) {
                             LazyColumn {
                                 items(suggestions) { suggestion ->
@@ -178,21 +216,28 @@ fun CourseScreen(
                                                 searchQuery = suggestion.title
                                                 showSuggestions = false
                                             }
-                                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                            .padding(horizontal = 16.dp, vertical = 12.dp), // Rembourrage vertical augmenté
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        AsyncImage(
+                                        // Miniature de la suggestion avec animation de chargement
+                                        SubcomposeAsyncImage(
                                             model = "https://img.youtube.com/vi/${suggestion.youtube_url}/default.jpg",
                                             contentDescription = "Miniature de ${suggestion.title}",
                                             modifier = Modifier
-                                                .size(40.dp)
-                                                .clip(RoundedCornerShape(4.dp)),
+                                                .size(56.dp) // Miniature légèrement plus grande
+                                                .clip(RoundedCornerShape(8.dp)), // Coins arrondis pour l'image
                                             contentScale = ContentScale.Crop
-                                        )
+                                        ) {
+                                            when (painter.state) {
+                                                is AsyncImagePainter.State.Loading -> LottieImageLoadingAnimation()
+                                                else -> SubcomposeAsyncImageContent()
+                                            }
+                                        }
                                         Spacer(modifier = Modifier.width(12.dp))
                                         Text(
                                             text = suggestion.title,
-                                            color = MaterialTheme.colorScheme.onBackground
+                                            color = MaterialTheme.colorScheme.onSurface, // Utilise onSurface pour le texte
+                                            style = MaterialTheme.typography.bodyLarge // Texte plus grand pour les suggestions
                                         )
                                     }
                                 }
@@ -200,15 +245,16 @@ fun CourseScreen(
                         }
                     }
 
+                    // Section des vidéos populaires
                     SectionTitle(
                         title = "Populaires",
                         onVoirPlus = { navController.navigate("screenVideoPopulare") },
-                        textColor = MaterialTheme.colorScheme.onBackground
+                        textColor = MaterialTheme.colorScheme.onSurface // Couleur de texte cohérente
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     LazyRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp), // Espacement augmenté
                         contentPadding = PaddingValues(horizontal = 16.dp)
                     ) {
                         items(popularVideos) { video ->
@@ -217,23 +263,27 @@ fun CourseScreen(
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Spacer(modifier = Modifier.height(24.dp)) // Plus d'espace entre les sections
+
+                    // Section des vidéos recommandées
                     if (recommendedVideos.isNotEmpty()) {
                         SectionTitle(
                             title = "Pour vous",
                             onVoirPlus = {
                                 navController.navigate("screenVideoTrack/${userInfo?.track}")
                             },
-                            textColor = MaterialTheme.colorScheme.onBackground
+                            textColor = MaterialTheme.colorScheme.onSurface // Couleur de texte cohérente
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         if (isTablet) {
+                            // Grille pour les tablettes
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(2),
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                verticalArrangement = Arrangement.spacedBy(12.dp), // Espacement augmenté
+                                horizontalArrangement = Arrangement.spacedBy(12.dp) // Espacement augmenté
                             ) {
                                 items(recommendedVideos) { video ->
                                     VideoGridItem(video = video) {
@@ -242,9 +292,10 @@ fun CourseScreen(
                                 }
                             }
                         } else {
+                            // Liste verticale pour les téléphones
                             LazyColumn(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp), // Espacement augmenté
                                 contentPadding = PaddingValues(horizontal = 16.dp)
                             ) {
                                 items(recommendedVideos) { video ->
@@ -279,7 +330,12 @@ fun FullScreenLoadingAnimation() {
     }
 }
 
-/** Titre de section avec lien "voir plus" */
+/**
+ * Titre de section avec un bouton "Voir tout".
+ * @param title Le titre de la section.
+ * @param onVoirPlus L'action à effectuer lorsque le bouton "Voir tout" est cliqué.
+ * @param textColor La couleur du texte du titre.
+ */
 @Composable
 fun SectionTitle(
     title: String,
@@ -295,35 +351,44 @@ fun SectionTitle(
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.titleLarge, // Titre plus grand
+            fontWeight = FontWeight.Bold, // Titre plus gras
             color = textColor
         )
-        Text(
-            text = "voir plus...",
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable { onVoirPlus() }
-        )
+        TextButton(onClick = onVoirPlus) { // Utilise TextButton pour un aspect Material 3
+            Text(
+                text = "Voir tout", // Changé "voir plus..." en "Voir tout" pour plus de clarté
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
 
-/** Carte "Populaire" pour une vidéo */
+/**
+ * Carte "Populaire" pour une vidéo, affichée dans une LazyRow.
+ * @param video La vidéo à afficher.
+ * @param onClick L'action à effectuer lorsque la carte est cliquée.
+ */
 @Composable
 fun VideoCardPopular(video: Video, onClick: () -> Unit) {
     Card(
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(12.dp), // Coins plus arrondis
         modifier = Modifier
-            .width(300.dp)
-            .height(170.dp)
+            .width(280.dp) // Largeur légèrement ajustée pour mieux s'adapter dans LazyRow
+            .height(200.dp) // Hauteur augmentée pour mieux accueillir le contenu
             .clickable { onClick() },
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp), // Ajout d'élévation pour l'ombre
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(70.dp)
-                    .background(Color.LightGray,shape = RoundedCornerShape(18.dp))
+                    .height(120.dp) // Hauteur d'image augmentée
+                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)) // Clip les coins supérieurs
+                    .background(MaterialTheme.colorScheme.surfaceContainer) // Fond de remplacement
             ) {
                 SubcomposeAsyncImage(
                     model = "https://img.youtube.com/vi/${video.youtube_url}/hqdefault.jpg",
@@ -337,14 +402,14 @@ fun VideoCardPopular(video: Video, onClick: () -> Unit) {
                     }
                 }
             }
-
             Column(modifier = Modifier.padding(8.dp)) {
                 ExpandableTitle(
                     title = video.title,
-                    maxLength = 15,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground
+                    maxLength = 30, // Longueur maximale augmentée pour les titres populaires
+                    style = MaterialTheme.typography.titleSmall, // Titre plus grand pour les cartes populaires
+                    color = MaterialTheme.colorScheme.onSurface
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 // Ligne d'affichage des étoiles suivie du nombre de vues
                 Row(
                     verticalAlignment = Alignment.CenterVertically
@@ -354,15 +419,17 @@ fun VideoCardPopular(video: Video, onClick: () -> Unit) {
                     Icon(
                         imageVector = Icons.Default.Visibility,
                         contentDescription = "Vues",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(16.dp)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant, // Utilise onSurfaceVariant pour les icônes
+                        modifier = Modifier.size(18.dp) // Icône légèrement plus grande
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "${video.progresses.size}", // Assurez-vous que 'views' est une propriété de votre entité Video
-                        style = MaterialTheme.typography.bodySmall
+                        text = "${video.progresses.size} vues", // Ajout de "vues"
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                Spacer(modifier = Modifier.height(4.dp))
                 // Ligne d'affichage du numéro de cours et de la catégorie avec icônes
                 Row(
                     verticalAlignment = Alignment.CenterVertically
@@ -370,25 +437,27 @@ fun VideoCardPopular(video: Video, onClick: () -> Unit) {
                     Icon(
                         imageVector = Icons.Default.VideoLibrary,
                         contentDescription = "Icône vidéo",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(16.dp)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Cours numéro : ${video.order}",
-                        style = MaterialTheme.typography.bodySmall
+                        text = "Cours ${video.order}", // Texte simplifié
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Icon(
                         imageVector = Icons.Default.Category,
                         contentDescription = "Catégorie",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(16.dp)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = video.category,
-                        style = MaterialTheme.typography.bodySmall
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -396,111 +465,138 @@ fun VideoCardPopular(video: Video, onClick: () -> Unit) {
     }
 }
 
-/** Élément d'une liste (téléphone) : miniature et texte à droite */
+/**
+ * Élément d'une liste (pour téléphone) : miniature et texte à droite.
+ * Encapsulé dans une Card pour un style Material 3 cohérent.
+ * @param video La vidéo à afficher.
+ * @param onClick L'action à effectuer lorsque l'élément est cliqué.
+ */
 @Composable
 fun VideoRowItem(video: Video, onClick: () -> Unit) {
-    Row(
-
+    Card(
+        shape = RoundedCornerShape(12.dp), // Coins plus arrondis
         modifier = Modifier
             .fillMaxWidth()
-            .height(100.dp)
+            .height(120.dp) // Hauteur augmentée pour un meilleur affichage du contenu
             .clickable { onClick() },
-        verticalAlignment = Alignment.CenterVertically
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp), // Ajout d'élévation
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Box(
-            modifier = Modifier
-                .size(150.dp)
-                .background(Color.LightGray, shape = RoundedCornerShape(8.dp))
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            SubcomposeAsyncImage(
-                model = "https://img.youtube.com/vi/${video.youtube_url}/hqdefault.jpg",
-                contentDescription = "Miniature de ${video.title}",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+            Box(
+                modifier = Modifier
+                    .width(160.dp) // Largeur ajustée pour l'image
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)) // Clip les coins gauches
+                    .background(MaterialTheme.colorScheme.surfaceContainer) // Fond de remplacement
             ) {
-                when (painter.state) {
-                    is AsyncImagePainter.State.Loading -> LottieImageLoadingAnimation()
-                    else -> SubcomposeAsyncImageContent()
+                SubcomposeAsyncImage(
+                    model = "https://img.youtube.com/vi/${video.youtube_url}/hqdefault.jpg",
+                    contentDescription = "Miniature de ${video.title}",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    when (painter.state) {
+                        is AsyncImagePainter.State.Loading -> LottieImageLoadingAnimation()
+                        else -> SubcomposeAsyncImageContent()
+                    }
                 }
             }
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center
-        ) {
-            ExpandableTitle(
-                title = video.title,
-                maxLength = 15,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            // Ligne d'affichage des étoiles suivie du nombre de vues
-            Row(
-                verticalAlignment = Alignment.CenterVertically
+            Spacer(modifier = Modifier.width(12.dp)) // Espacement augmenté
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp), // Ajoute un rembourrage à droite
+                verticalArrangement = Arrangement.Center
             ) {
-                Rating(rating = video.stars)
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(
-                    imageVector = Icons.Default.Visibility,
-                    contentDescription = "Vues",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.size(16.dp)
+                ExpandableTitle(
+                    title = video.title,
+                    maxLength = 40, // Longueur maximale augmentée pour les éléments de ligne
+                    style = MaterialTheme.typography.titleMedium, // Titre plus grand
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "${video.progresses.size}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-            // Ligne d'affichage du numéro de cours et de la catégorie
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.VideoLibrary,
-                    contentDescription = "Icône vidéo",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "Cours numéro : ${video.order}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(
-                    imageVector = Icons.Default.Category,
-                    contentDescription = "Catégorie",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = video.category,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Spacer(modifier = Modifier.height(4.dp))
+                // Ligne d'affichage des étoiles suivie du nombre de vues
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Rating(rating = video.stars)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.Default.Visibility,
+                        contentDescription = "Vues",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${video.progresses.size} vues",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                // Ligne d'affichage du numéro de cours et de la catégorie
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VideoLibrary,
+                        contentDescription = "Icône vidéo",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Cours ${video.order}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.Default.Category,
+                        contentDescription = "Catégorie",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = video.category,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
 }
 
-/** Élément d'une grille (tablette) pour une vidéo */
+/**
+ * Élément d'une grille (pour tablette) pour une vidéo.
+ * Encapsulé dans une Card pour un style Material 3 cohérent.
+ * @param video La vidéo à afficher.
+ * @param onClick L'action à effectuer lorsque l'élément est cliqué.
+ */
 @Composable
 fun VideoGridItem(video: Video, onClick: () -> Unit) {
     Card(
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(12.dp), // Coins plus arrondis
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(16f / 9f)
+            .aspectRatio(16f / 9f) // Maintient le rapport d'aspect pour la miniature vidéo
             .clickable { onClick() },
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp), // Ajout d'élévation
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column {
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .background(Color.LightGray)
+                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)) // Clip les coins supérieurs
+                    .background(MaterialTheme.colorScheme.surfaceContainer) // Fond de remplacement
             ) {
                 SubcomposeAsyncImage(
                     model = "https://img.youtube.com/vi/${video.youtube_url}/hqdefault.jpg",
@@ -517,36 +613,55 @@ fun VideoGridItem(video: Video, onClick: () -> Unit) {
             Column(modifier = Modifier.padding(8.dp)) {
                 ExpandableTitle(
                     title = video.title,
-                    maxLength = 15,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground
+                    maxLength = 30, // Longueur maximale augmentée
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 // Affichage du numéro de cours et de la catégorie avec icônes
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.VideoLibrary,
                         contentDescription = "Icône vidéo",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(16.dp)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Cours numéro : ${video.order}",
+                        text = "Cours ${video.order}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Icon(
                         imageVector = Icons.Default.Category,
                         contentDescription = "Catégorie",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(16.dp)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = video.category,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                // Évaluation et vues pour l'élément de grille
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Rating(rating = video.stars)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.Default.Visibility,
+                        contentDescription = "Vues",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${video.progresses.size} vues",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -557,12 +672,17 @@ fun VideoGridItem(video: Video, onClick: () -> Unit) {
 /** Animation Lottie pour le chargement d'une image miniature */
 @Composable
 fun LottieImageLoadingAnimation() {
-    val composition by rememberLottieComposition(
-        LottieCompositionSpec.RawRes(R.raw.imageloading)
-    )
-    LottieAnimation(
-        composition = composition,
-        iterations = LottieConstants.IterateForever,
-        modifier = Modifier.size(80.dp)
-    )
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        val composition by rememberLottieComposition(
+            LottieCompositionSpec.RawRes(R.raw.imageloading)
+        )
+        LottieAnimation(
+            composition = composition,
+            iterations = LottieConstants.IterateForever,
+            modifier = Modifier.size(80.dp)
+        )
+    }
 }
